@@ -19,21 +19,25 @@ object Pi extends App {
 class Master(workerCount: Int, number: Int, listener: ActorRef) extends Actor {
   val worker = context.actorOf(Props(new Worker).withRouter(RoundRobinPool(workerCount)))
   val numbersList = (0 to number).grouped(10).toList
-  private var result = 0
-  private var messageCount = 0
 
   override def receive: Receive = {
+    next(0, 0)
+  }
+
+  def next(result: Int, messageCount: Int): Receive = {
     case StartCalc =>
       println("Start!")
       numbersList.foreach(worker ! Work(_))
     case Result(sum) =>
-      result += sum
-      messageCount += 1
-      if (messageCount == numbersList.length) {
-        listener ! FinalResult(result)
+      (messageCount + 1, result + sum) match {
+        case (newMessageCount, newResult) =>
+          context.become(next(newResult, newMessageCount))
+          if (newMessageCount == numbersList.length) {
+            listener ! FinalResult(newResult)
+          }
       }
-  }
 
+  }
 }
 
 class Listener extends Actor {
